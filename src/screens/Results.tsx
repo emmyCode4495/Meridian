@@ -1,28 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, LinearTransition, useAnimatedStyle, useSharedValue, withRepeat, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DAYS, Flight, fmtDate, fmtDur, fmtTime, generateFlights, money } from '../data';
 import { useStore } from '../store';
 import { useNav } from '../nav/Navigator';
 import { C, F, M, R, T } from '../theme';
-import { RouteArc } from '../ui/Arc';
+import { RouteArc, useRouteLoop } from '../ui/Arc';
 import { Roll, Segmented } from '../ui/Bits';
 import { Header } from '../ui/Header';
 import { Tap } from '../ui/Tap';
 
-function Loading({ total, label }: { total: number; label: string }) {
+function Loading({ total, label, round, leg }: { total: number; label: string; round: boolean; leg: number }) {
   const { width } = useWindowDimensions();
-  const p = useSharedValue(0);
+  // Round trips always fly there and back; one-way trips fly one direction.
+  const p = useRouteLoop(round, `${leg}`);
   const [n, setN] = useState(0);
   useEffect(() => {
-    p.value = withRepeat(withTiming(1, { duration: 1300, easing: Easing.inOut(Easing.cubic) }), -1, false);
     const id = setInterval(() => setN((x) => Math.min(total, x + Math.ceil(total / 14))), 110);
     return () => clearInterval(id);
-  }, [p, total]);
+  }, [total]);
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80 }}>
-      <RouteArc width={Math.min(width - 80, 300)} height={120} progress={p} planeSize={28} />
+      <RouteArc width={Math.min(width - 80, 300)} height={120} progress={p} planeSize={28} flip={round} persist />
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 26, gap: 8 }}>
         <Roll value={n} size={38} style={{ fontFamily: F.display, fontSize: 32, color: C.text }} />
         <Text style={T.place}>flights compared</Text>
@@ -45,7 +45,7 @@ function Tag({ label }: { label: string }) {
 function FlightCard({ f, i, onPress }: { f: Flight; i: number; onPress: () => void }) {
   const over = Math.floor(f.arrive / 1440);
   return (
-    <Animated.View layout={LinearTransition.springify().damping(18)} entering={FadeInDown.delay(i * M.stagger).springify().damping(17)}>
+    <Animated.View layout={LinearTransition.duration(300).easing(M.ease.out)} entering={FadeInDown.delay(i * M.stagger).duration(360).easing(M.ease.out)}>
       <Tap onPress={onPress} scaleTo={0.98} style={{ borderRadius: R.panel, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, padding: 18, marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: f.airline.color }} />
@@ -96,7 +96,7 @@ function FlightCard({ f, i, onPress }: { f: Flight; i: number; onPress: () => vo
 function Progress({ leg }: { leg: number }) {
   const v = useSharedValue(leg);
   useEffect(() => {
-    v.value = withSpring(leg, M.spring.fluid);
+    v.value = withSpring(leg, M.spring.settle);
   }, [leg, v]);
   const fill = useAnimatedStyle(() => ({ width: `${50 + v.value * 50}%` }));
   return (
@@ -181,7 +181,7 @@ export function Results() {
       />
       {round && <Progress leg={leg} />}
       {loading ? (
-        <Loading total={total} label={leg === 0 ? 'Searching outbound flights' : 'Now the way back'} />
+        <Loading total={total} round={round} leg={leg} label={leg === 0 ? (round ? 'Searching both directions' : 'Searching flights') : 'Now the way back'} />
       ) : (
         <ScrollView key={leg} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
           {leg === 1 && flight && (

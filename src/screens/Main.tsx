@@ -1,57 +1,50 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
-  Easing, FadeInDown, FadeOutUp, LinearTransition, SharedValue, interpolate, interpolateColor,
+  FadeIn, FadeInDown, FadeOutUp, SharedValue, interpolate,
   useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { AIRPORTS, Airport, DAYS, distanceKm, fmtDate, fmtDur, money, monthShort, weekday } from '../data';
+import { AIRPORTS, Airport, DAYS, distanceKm, fmtDate, fmtDur, money } from '../data';
 import { Booking, useStore } from '../store';
 import { useNav } from '../nav/Navigator';
 import { C, F, M, R, T, shadow } from '../theme';
 import { Glass, Icon, Reveal, Roll, Segmented } from '../ui/Bits';
-import { RouteArc } from '../ui/Arc';
+import { RouteArc, useRouteLoop } from '../ui/Arc';
 import { GlobeMark } from '../ui/Globe';
 import { AirportSheet } from '../ui/Sheet';
+import { DateMode, DateSheet } from '../ui/DateSheet';
 import { PrimaryButton } from '../ui/Header';
 import { Tap } from '../ui/Tap';
 
 const PAD = 20;
 const CABINS = ['Economy', 'Premium', 'Business'] as const;
 
-function DayChip({ d, selected, onPress }: { d: Date; selected: boolean; onPress: () => void }) {
-  const p = useSharedValue(selected ? 1 : 0);
-  useEffect(() => {
-    p.value = withSpring(selected ? 1 : 0, M.spring.snappy);
-  }, [selected, p]);
-  const box = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(p.value, [0, 1], ['#FFFFFF', C.navy]),
-    transform: [{ translateY: interpolate(p.value, [0, 1], [0, -4]) }],
-  }));
+function DateTile({ label, value, sub, ghost, onPress }: { label: string; value: string; sub?: string; ghost?: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={() => { Haptics.selectionAsync(); onPress(); }}>
-      <Animated.View style={[{ width: 58, height: 82, borderRadius: R.panel - 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line }, box]}>
-        <Text style={{ fontFamily: F.med, fontSize: 12, color: selected ? 'rgba(244,248,252,0.7)' : C.mute }}>{weekday(d)}</Text>
-        <Text style={{ fontFamily: F.display, fontSize: 28, lineHeight: 32, color: selected ? C.onNavy : C.text }}>{d.getDate()}</Text>
-        <Text style={{ fontFamily: F.body, fontSize: 11.5, color: selected ? 'rgba(244,248,252,0.7)' : C.mute }}>{monthShort(d)}</Text>
+    <Tap
+      onPress={onPress}
+      scaleTo={0.97}
+      wrapStyle={{ flex: 1 }}
+      style={[
+        { minHeight: 62, borderRadius: R.panel - 4, paddingVertical: 10, paddingHorizontal: 14, justifyContent: 'center' },
+        ghost ? { borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.lineStrong } : { backgroundColor: C.surface, borderWidth: 1, borderColor: C.line },
+      ]}
+    >
+      <Text style={T.small}>{label}</Text>
+      <Animated.View key={value} entering={FadeIn.duration(200)}>
+        <Text style={ghost ? { ...T.place, fontSize: 18 } : { fontFamily: F.display, fontSize: 21, lineHeight: 25, color: C.text }}>{value}</Text>
       </Animated.View>
-    </Pressable>
-  );
-}
-
-function DayStrip({ from, selected, onSelect }: { from: number; selected: number; onSelect: (i: number) => void }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: PAD, gap: 8, paddingTop: 6, paddingBottom: 2 }}>
-      {DAYS.map((d, i) => (i >= from ? <DayChip key={i} d={d} selected={i === selected} onPress={() => onSelect(i)} /> : null))}
-    </ScrollView>
+      {!!sub && <Text style={{ ...T.small, fontSize: 11.5 }}>{sub}</Text>}
+    </Tap>
   );
 }
 
 function Code({ a, align }: { a: Airport; align: 'left' | 'right' }) {
   return (
-    <Animated.View key={a.code} entering={FadeInDown.springify().damping(15)} exiting={FadeOutUp.duration(120)} style={{ alignItems: align === 'left' ? 'flex-start' : 'flex-end', flex: 1 }}>
+    <Animated.View key={a.code} entering={FadeInDown.duration(260).easing(M.ease.out)} exiting={FadeOutUp.duration(120)} style={{ alignItems: align === 'left' ? 'flex-start' : 'flex-end', flex: 1 }}>
       <Text style={T.code}>{a.code}</Text>
       <Text style={T.place} numberOfLines={1}>{a.city}</Text>
     </Animated.View>
@@ -85,7 +78,8 @@ function Destination({ a, i, scrollX, from, onPress }: { a: Airport; i: number; 
 
 function TripCard({ b, i, onPress }: { b: Booking; i: number; onPress: () => void }) {
   const f = b.flight;
-  const p = useSharedValue(1);
+  // Round trips fly there and back, one-way trips fly one direction: same loop as everywhere else.
+  const p = useRouteLoop(!!b.ret, b.id);
   return (
     <Reveal i={i}>
       <Tap onPress={onPress} scaleTo={0.985} style={{ borderRadius: R.panel + 2, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, padding: 20, marginBottom: 12 }}>
@@ -99,7 +93,7 @@ function TripCard({ b, i, onPress }: { b: Booking; i: number; onPress: () => voi
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
           <Text style={{ ...T.code, fontSize: 36, lineHeight: 40 }}>{f.from.code}</Text>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <RouteArc width={90} height={34} progress={p} planeSize={14} ends={false} />
+            <RouteArc width={90} height={34} progress={p} planeSize={14} ends={false} flip={!!b.ret} persist />
           </View>
           <Text style={{ ...T.code, fontSize: 36, lineHeight: 40 }}>{f.to.code}</Text>
         </View>
@@ -118,22 +112,21 @@ export function Main() {
   const nav = useNav();
   const { search, setSearch, tab, setTab, bookings, setFlight, setRetFlight } = useStore();
   const [sheet, setSheet] = useState<'from' | 'to' | null>(null);
+  const [dateSheet, setDateSheet] = useState<DateMode | null>(null);
   const [err, setErr] = useState('');
   const scroll = React.useRef<ScrollViewInstance>(null);
   const round = search.trip === 'round';
 
+  // Tabs cross-fade with a short, eased slide. No springs, so nothing overshoots or wobbles.
   const tabV = useSharedValue(tab);
   useEffect(() => {
-    tabV.value = withSpring(tab, M.spring.fluid);
+    tabV.value = withTiming(tab, { duration: 240, easing: M.ease.standard });
   }, [tab, tabV]);
-  const exploreS = useAnimatedStyle(() => ({ opacity: interpolate(tabV.value, [0, 1], [1, 0]), transform: [{ translateX: interpolate(tabV.value, [0, 1], [0, -40]) }] }));
-  const tripsS = useAnimatedStyle(() => ({ opacity: interpolate(tabV.value, [0, 1], [0, 1]), transform: [{ translateX: interpolate(tabV.value, [0, 1], [40, 0]) }] }));
+  const exploreS = useAnimatedStyle(() => ({ opacity: interpolate(tabV.value, [0, 1], [1, 0], 'clamp'), transform: [{ translateX: interpolate(tabV.value, [0, 1], [0, -14], 'clamp') }] }));
+  const tripsS = useAnimatedStyle(() => ({ opacity: interpolate(tabV.value, [0, 1], [0, 1], 'clamp'), transform: [{ translateX: interpolate(tabV.value, [0, 1], [14, 0], 'clamp') }] }));
 
-  const arc = useSharedValue(1);
-  useEffect(() => {
-    arc.value = 0;
-    arc.value = withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.cubic) });
-  }, [search.from.code, search.to.code, arc]);
+  // One way flies A to B; round trip flies there and back.
+  const arc = useRouteLoop(round, search.from.code + search.to.code);
 
   const rot = useSharedValue(0);
   const swap = () => {
@@ -170,20 +163,20 @@ export function Main() {
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* Explore */}
       <Animated.View style={[StyleSheet.absoluteFill, exploreS]} pointerEvents={tab === 0 ? 'auto' : 'none'}>
-        <ScrollView ref={scroll} contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scroll} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: insets.bottom + 220 }} showsVerticalScrollIndicator={false}>
           <View style={{ paddingHorizontal: PAD }}>
             <Reveal i={0} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <GlobeMark size={34} />
-              <Text style={{ fontFamily: F.display, fontSize: 26, color: C.text, letterSpacing: -0.3 }}>Meridian</Text>
+              <GlobeMark size={32} />
+              <Text style={{ fontFamily: F.display, fontSize: 25, color: C.text, letterSpacing: -0.3 }}>Meridian</Text>
             </Reveal>
             <Reveal i={1}>
-              <Text style={{ ...T.hero, marginTop: 22 }}>Where to?</Text>
+              <Text style={{ ...T.hero, fontSize: 38, lineHeight: 42, marginTop: 14 }}>Where to?</Text>
             </Reveal>
 
-            <Reveal i={2} style={{ marginTop: 18 }}>
+            <Reveal i={2} style={{ marginTop: 14 }}>
               <Segmented
                 width={246}
-                height={42}
+                height={40}
                 options={['One way', 'Round trip']}
                 icons={['oneway', 'loop']}
                 index={round ? 1 : 0}
@@ -191,8 +184,8 @@ export function Main() {
               />
             </Reveal>
 
-            <Reveal i={3} style={{ marginTop: 14 }}>
-              <View style={{ borderRadius: R.panel + 2, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, padding: 22, paddingBottom: 18 }}>
+            <Reveal i={3} style={{ marginTop: 12 }}>
+              <View style={{ borderRadius: R.panel + 2, backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, padding: 18, paddingBottom: 14 }}>
                 <View style={{ flexDirection: 'row' }}>
                   <Tap onPress={() => setSheet('from')} wrapStyle={{ flex: 1 }} scaleTo={0.97}>
                     <Text style={{ ...T.small, marginBottom: 2 }}>From</Text>
@@ -203,81 +196,77 @@ export function Main() {
                     <Code a={search.to} align="right" />
                   </Tap>
                 </View>
-                <View style={{ marginTop: 8, alignItems: 'center' }}>
-                  <RouteArc width={cardInner} height={60} progress={arc} planeSize={20} />
-                  <Animated.View style={[{ position: 'absolute', top: -30 }, swapStyle]}>
-                    <Tap onPress={swap} style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center', ...shadow(6, 12, 0.5) }}>
-                      <Icon name="swap" size={20} color={C.onNavy} />
+                <View style={{ marginTop: 4, alignItems: 'center' }}>
+                  <RouteArc width={cardInner} height={52} progress={arc} planeSize={20} flip={round} persist />
+                  <Animated.View style={[{ position: 'absolute', top: -28 }, swapStyle]}>
+                    <Tap onPress={swap} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center', ...shadow(6, 12, 0.5) }}>
+                      <Icon name="swap" size={19} color={C.onNavy} />
                     </Tap>
                   </Animated.View>
                 </View>
-                <Text style={{ ...T.small, textAlign: 'center', marginTop: 4 }}>
-                  {Math.round(km).toLocaleString()} km, about {fmtDur(Math.round(35 + (km / 820) * 60))} nonstop
+                <Text style={{ ...T.small, textAlign: 'center', marginTop: 2, color: err ? C.danger : C.mute }}>
+                  {err || `${Math.round(km).toLocaleString()} km, about ${fmtDur(Math.round(35 + (km / 820) * 60))} nonstop`}
                 </Text>
               </View>
             </Reveal>
 
-            <Reveal i={4} layout style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 24, marginBottom: 8 }}>
-              <Text style={T.label}>Departure</Text>
-              <Text style={{ fontFamily: F.display, fontSize: 18, color: C.text }}>{fmtDate(DAYS[search.dayIdx])}</Text>
+            <Reveal i={4} style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <DateTile label="Departure" value={fmtDate(DAYS[search.dayIdx])} onPress={() => setDateSheet('dep')} />
+              {round ? (
+                <DateTile
+                  label="Return"
+                  value={fmtDate(DAYS[search.retIdx])}
+                  sub={`${nights} ${nights === 1 ? 'night' : 'nights'} away`}
+                  onPress={() => setDateSheet('ret')}
+                />
+              ) : (
+                <DateTile ghost label="Return" value="Add a return" onPress={() => { setSearch({ trip: 'round' }); setDateSheet('ret'); }} />
+              )}
             </Reveal>
-          </View>
-          <Reveal i={5} layout>
-            <DayStrip from={0} selected={search.dayIdx} onSelect={(i) => setSearch({ dayIdx: i })} />
-          </Reveal>
 
-          {round && (
-            <Animated.View entering={FadeInDown.springify().damping(18)} exiting={FadeOutUp.duration(160)} layout={LinearTransition.springify().damping(20)}>
-              <View style={{ paddingHorizontal: PAD, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 20, marginBottom: 8 }}>
-                <Text style={T.label}>Return, {nights} {nights === 1 ? 'night' : 'nights'} away</Text>
-                <Text style={{ fontFamily: F.display, fontSize: 18, color: C.text }}>{fmtDate(DAYS[search.retIdx])}</Text>
-              </View>
-              <DayStrip from={search.dayIdx} selected={search.retIdx} onSelect={(i) => setSearch({ retIdx: i })} />
-            </Animated.View>
-          )}
-
-          <Animated.View layout={LinearTransition.springify().damping(20)} style={{ paddingHorizontal: PAD }}>
-            <Reveal i={6} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, backgroundColor: C.surface, borderRadius: R.panel, borderWidth: 1, borderColor: C.line, paddingVertical: 12, paddingHorizontal: 18 }}>
+            <Reveal i={5} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, backgroundColor: C.surface, borderRadius: R.panel - 4, borderWidth: 1, borderColor: C.line, paddingVertical: 9, paddingHorizontal: 16 }}>
               <View>
-                <Text style={{ fontFamily: F.med, fontSize: 16, color: C.text }}>Travellers</Text>
+                <Text style={{ fontFamily: F.med, fontSize: 15, color: C.text }}>Travellers</Text>
                 <Text style={T.small}>{search.pax === 1 ? 'Just me' : `${search.pax} people`}</Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <Tap onPress={() => setSearch({ pax: Math.max(1, search.pax - 1) })} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: C.sunken, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="minus" size={17} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Tap onPress={() => setSearch({ pax: Math.max(1, search.pax - 1) })} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.sunken, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="minus" size={16} />
                 </Tap>
-                <View style={{ minWidth: 20, alignItems: 'center' }}>
-                  <Roll value={search.pax} size={36} style={{ fontFamily: F.display, fontSize: 30, color: C.text }} />
+                <View style={{ minWidth: 18, alignItems: 'center' }}>
+                  <Roll value={search.pax} size={34} style={{ fontFamily: F.display, fontSize: 28, color: C.text }} />
                 </View>
-                <Tap onPress={() => setSearch({ pax: Math.min(6, search.pax + 1) })} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: C.sunken, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="plus" size={17} />
+                <Tap onPress={() => setSearch({ pax: Math.min(6, search.pax + 1) })} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.sunken, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="plus" size={16} />
                 </Tap>
               </View>
             </Reveal>
 
-            <Reveal i={7} style={{ marginTop: 12 }}>
-              <Segmented options={[...CABINS]} index={CABINS.indexOf(search.cabin)} onChange={(i) => setSearch({ cabin: CABINS[i] })} />
+            <Reveal i={6} style={{ marginTop: 10 }}>
+              <Segmented height={40} options={[...CABINS]} index={CABINS.indexOf(search.cabin)} onChange={(i) => setSearch({ cabin: CABINS[i] })} />
             </Reveal>
 
-            <Reveal i={8} style={{ marginTop: 20 }}>
-              <Animated.View style={ctaShake}>
-                <PrimaryButton label={round ? 'Search round trip' : 'Search flights'} onPress={go} />
-              </Animated.View>
-              {!!err && <Text style={{ fontFamily: F.body, fontSize: 13, color: C.danger, textAlign: 'center', marginTop: 10 }}>{err}</Text>}
+            <Reveal i={7}>
+              <Text style={{ ...T.heading, fontSize: 24, marginTop: 30, marginBottom: 14 }}>Wander somewhere</Text>
             </Reveal>
-
-            <Reveal i={9}>
-              <Text style={{ ...T.heading, fontSize: 24, marginTop: 34, marginBottom: 14 }}>Wander somewhere</Text>
-            </Reveal>
-          </Animated.View>
-          <Animated.View layout={LinearTransition.springify().damping(20)}>
-            <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} onScroll={onScrollX} scrollEventThrottle={16} snapToInterval={200} decelerationRate="fast" contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 18 }}>
-              {dests.map((a, i) => (
-                <Destination key={a.code} a={a} i={i} scrollX={scrollX} from={search.from} onPress={() => { setSearch({ to: a }); setErr(''); scroll.current?.scrollTo({ y: 0, animated: true }); }} />
-              ))}
-            </Animated.ScrollView>
-          </Animated.View>
+          </View>
+          <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} onScroll={onScrollX} scrollEventThrottle={16} snapToInterval={200} decelerationRate="fast" contentContainerStyle={{ paddingHorizontal: PAD, paddingBottom: 18 }}>
+            {dests.map((a, i) => (
+              <Destination key={a.code} a={a} i={i} scrollX={scrollX} from={search.from} onPress={() => { setSearch({ to: a }); setErr(''); scroll.current?.scrollTo({ y: 0, animated: true }); }} />
+            ))}
+          </Animated.ScrollView>
         </ScrollView>
+
+        {/* The primary action never scrolls away: pinned above the dock. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(237,242,247,0)', C.bg, C.bg]}
+          locations={[0, 0.55, 1]}
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: insets.bottom + 190 }}
+        />
+        <Animated.View style={[{ position: 'absolute', left: PAD, right: PAD, bottom: insets.bottom + 88 }, ctaShake]}>
+          <PrimaryButton label={round ? 'Search round trip' : 'Search flights'} onPress={go} />
+        </Animated.View>
       </Animated.View>
 
       {/* Trips */}
@@ -293,6 +282,17 @@ export function Main() {
       </Animated.View>
 
       <Dock tab={tab} onChange={setTab} bottom={insets.bottom + 16} />
+
+      <DateSheet
+        visible={dateSheet !== null}
+        mode={dateSheet ?? 'dep'}
+        round={round}
+        dayIdx={search.dayIdx}
+        retIdx={search.retIdx}
+        onMode={setDateSheet}
+        onPick={setSearch}
+        onClose={() => setDateSheet(null)}
+      />
 
       <AirportSheet
         visible={sheet !== null}
@@ -313,7 +313,7 @@ export function Main() {
 function Dock({ tab, onChange, bottom }: { tab: number; onChange: (n: number) => void; bottom: number }) {
   const x = useSharedValue(tab * 108);
   useEffect(() => {
-    x.value = withSpring(tab * 108, M.spring.snappy);
+    x.value = withTiming(tab * 108, { duration: 240, easing: M.ease.standard });
   }, [tab, x]);
   const pill = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   const items = [

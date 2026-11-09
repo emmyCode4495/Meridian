@@ -47,7 +47,7 @@ export function Splash() {
       <View style={{ marginTop: -30 }}>
         <OrbitGlobe width={gw} progress={lap} intro={intro} />
       </View>
-      <Animated.View entering={FadeInUp.delay(1700).duration(900).springify().damping(20)} style={{ marginTop: 8 }}>
+      <Animated.View entering={FadeInUp.delay(1700).duration(900).easing(M.ease.out)} style={{ marginTop: 8 }}>
         <Logo size={54} />
       </Animated.View>
     </View>

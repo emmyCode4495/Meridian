@@ -7,7 +7,7 @@ import { CABIN_BAGS, DAYS, Flight, fmtDate, fmtDur, fmtTime, money } from '../da
 import { useStore } from '../store';
 import { useNav } from '../nav/Navigator';
 import { C, F, R, T } from '../theme';
-import { RouteArc } from '../ui/Arc';
+import { RouteArc, useRouteLoop } from '../ui/Arc';
 import { Icon, Reveal, Roll } from '../ui/Bits';
 import { Header, PrimaryButton } from '../ui/Header';
 
@@ -70,10 +70,7 @@ export function Detail() {
   const { width } = useWindowDimensions();
   const nav = useNav();
   const { flight: f, retFlight, search, pricing } = useStore();
-  const p = useSharedValue(0);
-  useEffect(() => {
-    p.value = withDelay(250, withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.cubic) }));
-  }, [p]);
+  const p = useRouteLoop(search.trip === 'round', f?.id ?? '');
   if (!f) return null;
   const round = search.trip === 'round' && !!retFlight;
   const { fare, taxes, total } = pricing();
@@ -91,7 +88,7 @@ export function Detail() {
           <LinearGradient colors={[f.to.hue[0], C.bg]} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 320 }} />
           <Header onBack={nav.pop} title={round ? 'Your round trip' : 'Your flight'} sub={`${f.from.city} to ${f.to.city}`} />
           <View style={{ alignItems: 'center', marginTop: 6 }}>
-            <RouteArc width={width - 80} height={120} progress={p} planeSize={28} />
+            <RouteArc width={width - 80} height={120} progress={p} planeSize={28} flip={search.trip === 'round'} persist />
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 28, marginTop: 4 }}>
             <View>

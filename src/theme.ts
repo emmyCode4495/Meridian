@@ -57,12 +57,15 @@ export const M = {
     standard: Easing.bezier(0.2, 0, 0, 1),
     emphasized: Easing.bezier(0.3, 0, 0, 1),
     exit: Easing.bezier(0.4, 0, 1, 1),
+    out: Easing.out(Easing.cubic),
   },
   spring: {
     snappy: { damping: 20, stiffness: 300, mass: 0.9 },
     fluid: { damping: 18, stiffness: 160, mass: 1 },
     bouncy: { damping: 11, stiffness: 180, mass: 1 },
     soft: { damping: 22, stiffness: 120, mass: 1 },
+    // Critically damped and clamped: moves to its target and stops. Used for tabs and selectors.
+    settle: { damping: 40, stiffness: 340, mass: 1, overshootClamping: true },
   },
   stagger: 55,
 } as const;

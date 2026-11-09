@@ -23,8 +23,8 @@ export function Tap({ onPress, style, wrapStyle, children, scaleTo = 0.96, hapti
       style={wrapStyle}
       disabled={disabled}
       hitSlop={hitSlop}
-      onPressIn={() => { s.value = withSpring(scaleTo, M.spring.snappy); }}
-      onPressOut={() => { s.value = withSpring(1, M.spring.bouncy); }}
+      onPressIn={() => { s.value = withSpring(scaleTo, M.spring.settle); }}
+      onPressOut={() => { s.value = withSpring(1, M.spring.settle); }}
       onPress={() => {
         if (haptic) Haptics.selectionAsync();
         onPress?.();

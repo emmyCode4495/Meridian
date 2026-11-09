@@ -32,7 +32,7 @@ export function Navigator({ screens, initial }: Props) {
   const live = stack.filter((e) => !e.leaving).length;
 
   useEffect(() => {
-    count.value = withSpring(live, M.spring.fluid);
+    count.value = withSpring(live, M.spring.settle);
   }, [live, count]);
 
   const nextKey = () => `k${++counter.current}`;
@@ -107,7 +107,7 @@ function Item({ entry, index, count, Screen, focused, onGone }: ItemProps) {
   const sheet = entry.mode === 'sheet';
 
   useEffect(() => {
-    enter.value = sheet ? withSpring(1, M.spring.fluid) : withTiming(1, { duration: M.dur.slow, easing: M.ease.standard });
+    enter.value = sheet ? withSpring(1, M.spring.settle) : withTiming(1, { duration: M.dur.slow, easing: M.ease.standard });
   }, [enter, sheet]);
 
   useEffect(() => {

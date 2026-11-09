@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
-  Easing, FadeIn, FadeInDown, FadeOut, useAnimatedProps, useSharedValue, withDelay, withRepeat, withTiming,
+  Easing, FadeIn, FadeInDown, FadeOut, useAnimatedProps, useSharedValue, withDelay, withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useStore } from '../store';
 import { useNav } from '../nav/Navigator';
-import { C, F, T } from '../theme';
-import { RouteArc } from '../ui/Arc';
+import { C, F, M, T } from '../theme';
+import { RouteArc, useRouteLoop } from '../ui/Arc';
 import { Segmented } from '../ui/Bits';
 import { PrimaryButton } from '../ui/Header';
 import { BoardingPass } from '../ui/Pass';
@@ -42,22 +42,21 @@ export function Success() {
   const booking = bookings[0];
   const [phase, setPhase] = useState<'processing' | 'done'>('processing');
   const [leg, setLeg] = useState(0);
-  const p = useSharedValue(0);
+  const p = useRouteLoop(!!booking?.ret, 'pay');
 
   useEffect(() => {
-    p.value = withRepeat(withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.cubic) }), -1, false);
     const t = setTimeout(() => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setPhase('done');
     }, 2300);
     return () => clearTimeout(t);
-  }, [p]);
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {phase === 'processing' ? (
         <Animated.View exiting={FadeOut.duration(250)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 60 }}>
-          <RouteArc width={Math.min(width - 80, 300)} height={120} progress={p} planeSize={28} />
+          <RouteArc width={Math.min(width - 80, 300)} height={120} progress={p} planeSize={28} flip={!!booking?.ret} persist />
           <Text style={{ ...T.title, fontSize: 26, marginTop: 28 }}>Confirming your seats</Text>
           <Text style={{ ...T.small, marginTop: 6 }}>This takes a moment.</Text>
         </Animated.View>
@@ -66,24 +65,24 @@ export function Success() {
           <Animated.View entering={FadeIn.duration(300)}>
             <CheckRing />
           </Animated.View>
-          <Animated.Text entering={FadeInDown.delay(350).springify().damping(16)} style={{ ...T.hero, marginTop: 14 }}>
+          <Animated.Text entering={FadeInDown.delay(350).duration(420).easing(M.ease.out)} style={{ ...T.hero, marginTop: 14 }}>
             You are booked
           </Animated.Text>
-          <Animated.Text entering={FadeInDown.delay(450).springify().damping(16)} style={{ ...T.place, marginTop: 4, marginBottom: 22 }}>
+          <Animated.Text entering={FadeInDown.delay(450).duration(420).easing(M.ease.out)} style={{ ...T.place, marginTop: 4, marginBottom: 22 }}>
             Drag your boarding pass to tilt it.
           </Animated.Text>
           {booking?.ret && (
-            <Animated.View entering={FadeInDown.delay(520).springify()} style={{ marginBottom: 16 }}>
+            <Animated.View entering={FadeInDown.delay(520).duration(400).easing(M.ease.out)} style={{ marginBottom: 16 }}>
               <Segmented width={240} height={40} options={['Outbound', 'Return']} index={leg} onChange={setLeg} />
             </Animated.View>
           )}
-          <Animated.View entering={FadeInDown.delay(600).springify().damping(15).mass(1.1)}>
+          <Animated.View entering={FadeInDown.delay(600).duration(520).easing(M.ease.out)}>
             {booking && <BoardingPass key={leg} booking={booking} leg={leg} width={width - 40} />}
           </Animated.View>
         </ScrollView>
       )}
       {phase === 'done' && (
-        <Animated.View entering={FadeInDown.delay(900).springify()} style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 14 }}>
+        <Animated.View entering={FadeInDown.delay(900).duration(400).easing(M.ease.out)} style={{ position: 'absolute', left: 20, right: 20, bottom: insets.bottom + 14 }}>
           <PrimaryButton label="View my trips" onPress={() => { setTab(1); nav.popToTop(); }} />
         </Animated.View>
       )}

@@ -12,8 +12,8 @@ import { C, F, M } from '../theme';
 export function Reveal({ i = 0, children, style, layout }: { i?: number; children: React.ReactNode; style?: StyleProp<ViewStyle>; layout?: boolean }) {
   return (
     <Animated.View
-      entering={FadeInDown.delay(100 + i * M.stagger).springify().damping(18).mass(0.9)}
-      layout={layout ? LinearTransition.springify().damping(20) : undefined}
+      entering={FadeInDown.delay(100 + i * M.stagger).duration(380).easing(M.ease.out)}
+      layout={layout ? LinearTransition.duration(260).easing(M.ease.out) : undefined}
       style={style}
     >
       {children}
@@ -67,7 +67,7 @@ export function Icon({ name, size = 22, color = C.text, stroke = 1.7 }: { name: 
 function Digit({ d, h, style }: { d: number; h: number; style: StyleProp<TextStyle> }) {
   const y = useSharedValue(-d * h);
   useEffect(() => {
-    y.value = withSpring(-d * h, M.spring.fluid);
+    y.value = withSpring(-d * h, M.spring.settle);
   }, [d, h, y]);
   const a = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
   return (
@@ -113,7 +113,7 @@ export function Segmented({ options, index, onChange, icons, width, height = 44 
   const x = useSharedValue(0);
   const itemW = (w - 8) / options.length;
   useEffect(() => {
-    x.value = withSpring(index * itemW, M.spring.snappy);
+    x.value = withSpring(index * itemW, M.spring.settle);
   }, [index, itemW, x]);
   const pill = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   return (
